@@ -40,6 +40,18 @@ logger = logging.getLogger("paperless_ai.rag_classifier")
 TAXONOMY_CANDIDATE_TOP_K = 15
 
 
+def _sees_all_documents(user: User | None) -> bool:
+    """
+    True only for an active superuser. ``user=None`` is deliberately NOT
+    "see everything" here: the workflow route passes ``document.owner``, which
+    is ``None`` for documents without an owner (e.g. fresh from the consume
+    folder). Treating that as unrestricted sent other patients' text to the
+    LLM provider (PIA issue 4). ``None`` means "only documents without an
+    owner", the same as in ``permitted_document_ids``.
+    """
+    return user is not None and user_is_unrestricted(user)
+
+
 def _fulltext_similar_documents(
     document: Document,
     user: User | None,
@@ -59,7 +71,7 @@ def _fulltext_similar_documents(
     """
     from documents.search import get_backend
 
-    unrestricted = user_is_unrestricted(user)
+    unrestricted = _sees_all_documents(user)
     search_user = None if unrestricted else user
     backend = get_backend()
     similar_ids = backend.more_like_this_ids(
@@ -192,8 +204,8 @@ def get_taxonomy_context(
     try:
         if ai_config.llm_embedding_backend:
             # None means "no restriction" to retrieve_similar_nodes. An
-            # unrestricted user (no user at all, or an active superuser -- see
-            # user_is_unrestricted) can see every document, so skip
+            # unrestricted user (an active superuser -- see
+            # _sees_all_documents) can see every document, so skip
             # materializing every visible pk into a Python list and passing it
             # through as an IN filter: for a large library that is a wasted
             # quadratic scan in the vector store at best, and past ~32,763
@@ -204,7 +216,7 @@ def get_taxonomy_context(
             # which documents are considered -- only how we get there.
             visible_document_ids = (
                 None
-                if user_is_unrestricted(user)
+                if _sees_all_documents(user)
                 else list(permitted_document_ids(user))
             )
             nodes = retrieve_similar_nodes(

@@ -613,13 +613,13 @@ class TestGetTaxonomyContextVisibility:
 
     @pytest.mark.django_db
     @override_settings(LLM_EMBEDDING_BACKEND="huggingface")
-    def test_skips_permission_lookup_when_no_user(
+    def test_skips_permission_lookup_for_superuser(
         self,
         mocker: pytest_mock.MockerFixture,
     ) -> None:
         """
         GIVEN:
-            - No user is supplied
+            - An active superuser is supplied
         WHEN:
             - get_taxonomy_context() is called
         THEN:
@@ -635,7 +635,7 @@ class TestGetTaxonomyContextVisibility:
             "paperless_ai.ai_classifier.permitted_document_ids",
         )
 
-        get_taxonomy_context(document, None)
+        get_taxonomy_context(document, UserFactory.create(is_superuser=True))
 
         mock_permitted.assert_not_called()
         assert mock_retrieve.call_args.kwargs["document_ids"] is None
@@ -1174,3 +1174,51 @@ def test_get_ai_document_classification_localizes_only_new_names(
     assert "Contractor Work" in localization_prompt
     assert result["tags"]["existing_ids"] == [12]  # untouched by localization
     assert result["tags"]["new_names"] == ["Auftragsarbeit"]
+
+
+@pytest.mark.django_db
+@override_settings(LLM_EMBEDDING_BACKEND="huggingface")
+def test_unowned_document_context_excludes_other_owners_documents():
+    """
+    GIVEN:
+        - An unowned document (workflow route: document.owner is None)
+        - A similar document owned by another user (another patient's letter)
+        - A similar document without owner
+    WHEN:
+        - get_taxonomy_context() is called with the document owner (None)
+    THEN:
+        - Only the unowned neighbour reaches the LLM prompt context
+        - The private document and its taxonomy are not sent to the provider
+    """
+    private_tag = TagFactory.create(name="PrivatePatientTag")
+    private = DocumentFactory.create(
+        title="Private Patient Letter",
+        content="Diagnose: hartfalen",
+        owner=UserFactory.create(),
+    )
+    private.tags.add(private_tag)
+    shared = DocumentFactory.create(title="Shared", content="Public text", owner=None)
+    document = DocumentFactory.create(content="Some content", owner=None)
+    nodes = [
+        SimpleNamespace(metadata={"document_id": str(d.pk)}, score=0.9)
+        for d in (private, shared)
+    ]
+
+    def fake_retrieve(doc, top_k=5, document_ids=None):
+        allowed = None if document_ids is None else {int(i) for i in document_ids}
+        return [
+            n
+            for n in nodes
+            if allowed is None or int(n.metadata["document_id"]) in allowed
+        ]
+
+    with patch(
+        "paperless_ai.ai_classifier.retrieve_similar_nodes",
+        side_effect=fake_retrieve,
+    ):
+        candidates, context = get_taxonomy_context(document, user=document.owner)
+
+    assert "Private Patient Letter" not in context
+    assert "hartfalen" not in context
+    assert "TITLE: Shared" in context
+    assert all(t["name"] != "PrivatePatientTag" for t in candidates["tags"])
