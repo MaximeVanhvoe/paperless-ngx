@@ -311,6 +311,7 @@ markers = [
   "management: Tests which cover management commands/functionality",
   "search: Tests for the Tantivy search backend",
   "api: Tests for REST API endpoints",
+  "pia: Privacy Impact Assessment tests (group 2, H00Y3a)",
 ]
 minversion = "9.0"
 norecursedirs = [ "src/locale/", ".venv/", "src-ui/" ]
