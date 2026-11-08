@@ -8,9 +8,9 @@ Bevinding: de classifier (documents/classifier.py) traint één CountVectorizer
 op de OCR-tekst van alle documenten buiten de inbox, zonder filter op owner of
 permissies. Elk woord en woordpaar dat in minstens 1 % van de documenten
 voorkomt (min_df=0.01), komt in ``vocabulary_`` en wordt met pickle in
-MODEL_FILE opgeslagen. Het bestand is ondertekend met een HMAC (integriteit)
-maar niet versleuteld (geen vertrouwelijkheid). Een document in de prullenbak
-blijft in het model tot de volgende hertraining.
+MODEL_FILE opgeslagen. Het bestand is ondertekend met een HMAC (hash functie)
+maar niet versleuteld, dit checkt integriteit maar geen vertrouwelijkheid.
+Een document in de prullenbak blijft in het model tot de volgende hertraining.
 LINDDUN: Data disclosure, Non-compliance.
 AVG: art. 5(1)(c), art. 5(1)(f), art. 9, art. 17, art. 25, art. 32.
 """
@@ -94,7 +94,7 @@ class TestIssue6PatientDataInModel:
 
     @pytest.mark.xfail(
         reason="PIA issue 6: het modelbestand is niet versleuteld; een naam "
-        "staat leesbaar in de bytes (vertrouwelijkheid at rest)",
+        "staat leesbaar in de bytes (Confidentiality at rest)",
     )
     def test_patient_identifier_not_in_raw_model_file(
         self,
@@ -122,7 +122,7 @@ class TestIssue6PatientDataInModel:
 
     @pytest.mark.xfail(
         reason="PIA issue 6: één model bevat de inhoud van documenten van "
-        "alle owners, buiten het permissiemodel om",
+        "alle owners, zonder rekening te houden met het permissiemodel",
     )
     def test_documents_of_other_owners_not_in_shared_model(
         self,
@@ -176,7 +176,7 @@ class TestIssue6Controls:
 class TestIssue6Erasure:
     @pytest.mark.xfail(
         reason="PIA issue 6: een document in de prullenbak blijft in het model "
-        "tot de volgende hertraining (recht op wissing)",
+        "tot de volgende hertraining (recht op wissing), ook gelinked aan issue 7",
     )
     def test_trashed_document_removed_from_model(
         self,

@@ -33,7 +33,7 @@ def train_and_save_classifier() -> DocumentClassifier:
 
 
 def stored_token(text: str) -> str:
-    """Het token waaronder `text` in de vocabulary terechtkomt (na lowercase,
+    """Vind het token waaronder de string `text` in de vocabulary terechtkomt (na lowercase,
     stopwoorden en stemming), zodat tests niet afhangen van de stemmer."""
     tokens = DocumentClassifier().preprocess_content(text).split()
     assert len(tokens) == 1, f"verwacht één token voor {text!r}, kreeg {tokens}"
