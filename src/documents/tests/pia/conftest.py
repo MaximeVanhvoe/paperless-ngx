@@ -15,7 +15,10 @@ from paperless_testing.factories import UserFactory
 from paperless_testing.permissions import grant_global
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from django.contrib.auth.models import User
+    from pytest_django.fixtures import SettingsWrapper
     from rest_framework.test import APIClient
 
     from documents.models import Document
@@ -75,6 +78,21 @@ def _client_for(user: User) -> APIClient:
 def client_for():
     """Factory: client_for(user) geeft een ingelogde API-client voor die user."""
     return _client_for
+
+
+# --- Classifier -------------------------------------------------------------
+
+
+@pytest.fixture
+def classifier_model_file(settings: SettingsWrapper, tmp_path: Path) -> Path:
+    """Laat de classifier zijn modelbestand in een tijdelijke map schrijven.
+
+    De taal staat op Nederlands (stopwoorden + stemming), zoals in een
+    Vlaamse praktijk met PAPERLESS_OCR_LANGUAGE=nld.
+    """
+    settings.MODEL_FILE = tmp_path / "classification_model.pickle"
+    settings.CLASSIFIER_LANGUAGE = "dutch"
+    return settings.MODEL_FILE
 
 
 # --- Fictieve documenten ----------------------------------------------------
