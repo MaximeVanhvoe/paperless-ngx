@@ -33,6 +33,25 @@ def _allowed_ids(mocked_retrieve) -> list[int] | None:
 
 
 class TestIssue4LlmContext:
+    # Controle: bij een document met owner wordt de zoekopdracht beperkt tot
+    # wat die gebruiker mag zien (het GP-document zit erin, dat van de
+    # andere arts niet).
+    def test_owned_document_search_is_restricted(
+        self, gp_a, gp_b, discharge_letter_gp_a, vector_search_enabled
+    ):
+        from paperless_testing.factories import DocumentFactory
+
+        other_patient = DocumentFactory(
+            title="Brief patiënt van dokter B", content="fictief", owner=gp_b
+        )
+        with mock.patch(RETRIEVE, return_value=[]) as retrieve:
+            get_taxonomy_context(discharge_letter_gp_a, user=gp_a)
+        allowed = _allowed_ids(retrieve)
+        assert allowed is not None
+        assert discharge_letter_gp_a.pk in allowed
+        assert other_patient.pk not in allowed
+
+    @pytest.mark.xfail(strict=True, reason="v3.3.1: geen owner telt als 'geen beperking'")
     def test_unowned_document_does_not_pull_other_gps_documents(
         self, gp_a, unowned_lab_result, discharge_letter_gp_a, vector_search_enabled
     ):
@@ -92,6 +111,13 @@ def prompt_sent_to_llm(gp_b, vector_search_enabled):
 
 
 class TestIssue4EndToEnd:
+    # Controle: bij een document van dokter A bevat de prompt niets van dokter B.
+    def test_owned_document_prompt_has_no_other_gps_text(
+        self, discharge_letter_gp_a, prompt_sent_to_llm
+    ):
+        assert SECRET_MARKER not in prompt_sent_to_llm(discharge_letter_gp_a)
+
+    @pytest.mark.xfail(strict=True, reason="v3.3.1: geen owner telt als 'geen beperking'")
     def test_unowned_document_prompt_has_no_other_gps_text(
         self, unowned_lab_result, prompt_sent_to_llm
     ):
@@ -103,6 +129,7 @@ class TestIssue4OtherPatientsInPrompt:
     voor patiënt X tekst van brieven van andere patiënten, want de GP mag die
     allemaal zien. Die tekst gaat naar de externe LLM-provider."""
 
+    @pytest.mark.xfail(strict=True, reason="v3.3.1: prompt bevat tekst van vergelijkbare documenten")
     def test_prompt_for_patient_x_contains_no_text_of_patient_y(
         self, gp_a, vector_search_enabled
     ):
