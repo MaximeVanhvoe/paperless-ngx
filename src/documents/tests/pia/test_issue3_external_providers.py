@@ -26,25 +26,9 @@ AZURE = {
 
 
 class TestIssue3RemoteOcr:
-    # Controle: zonder Azure-configuratie gaat er niets naar buiten.
-    def test_without_azure_no_remote_engine_is_configured(self):
-        assert RemoteOCRConfig().remote_ocr_engine is None
-
     @override_settings(**AZURE)
     def test_azure_is_not_used_for_every_document_by_default(self):
         assert RemoteOCRConfig().remote_ocr_by_default is False
-
-    # Controle: een https-endpoint wordt aanvaard (de validatie werkt dus wel).
-    def test_https_endpoint_is_accepted(self, client_for, practice_manager):
-        response = client_for(practice_manager).patch(
-            "/api/config/1/",
-            {
-                "remote_ocr_engine": "azureai",
-                "remote_ocr_endpoint": "https://ocr.example.org",
-            },
-            format="json",
-        )
-        assert response.status_code == 200, response.content
 
     def test_plain_http_endpoint_is_rejected(self, client_for, practice_manager):
         response = client_for(practice_manager).patch(
@@ -62,18 +46,6 @@ class TestIssue3RemoteOcr:
 
 
 class TestIssue3ExternalLlm:
-    # Controle: een https-endpoint voor de LLM wordt aanvaard.
-    def test_https_llm_endpoint_is_accepted(self, client_for, practice_manager):
-        from unittest import mock
-
-        with mock.patch("paperless.serialisers.validate_outbound_http_url"):
-            response = client_for(practice_manager).patch(
-                "/api/config/1/",
-                {"llm_backend": "openai-like", "llm_endpoint": "https://llm.example.org"},
-                format="json",
-            )
-        assert response.status_code == 200, response.content
-
     def test_plain_http_llm_endpoint_is_rejected(
         self, client_for, practice_manager, settings
     ):

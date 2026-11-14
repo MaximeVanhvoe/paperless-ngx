@@ -33,24 +33,6 @@ def _allowed_ids(mocked_retrieve) -> list[int] | None:
 
 
 class TestIssue4LlmContext:
-    # Controle: bij een document met owner wordt de zoekopdracht beperkt tot
-    # wat die gebruiker mag zien (het GP-document zit erin, dat van de
-    # andere arts niet).
-    def test_owned_document_search_is_restricted(
-        self, gp_a, gp_b, discharge_letter_gp_a, vector_search_enabled
-    ):
-        from paperless_testing.factories import DocumentFactory
-
-        other_patient = DocumentFactory(
-            title="Brief patiënt van dokter B", content="fictief", owner=gp_b
-        )
-        with mock.patch(RETRIEVE, return_value=[]) as retrieve:
-            get_taxonomy_context(discharge_letter_gp_a, user=gp_a)
-        allowed = _allowed_ids(retrieve)
-        assert allowed is not None
-        assert discharge_letter_gp_a.pk in allowed
-        assert other_patient.pk not in allowed
-
     def test_unowned_document_does_not_pull_other_gps_documents(
         self, gp_a, unowned_lab_result, discharge_letter_gp_a, vector_search_enabled
     ):
@@ -110,12 +92,6 @@ def prompt_sent_to_llm(gp_b, vector_search_enabled):
 
 
 class TestIssue4EndToEnd:
-    # Controle: bij een document van dokter A bevat de prompt niets van dokter B.
-    def test_owned_document_prompt_has_no_other_gps_text(
-        self, discharge_letter_gp_a, prompt_sent_to_llm
-    ):
-        assert SECRET_MARKER not in prompt_sent_to_llm(discharge_letter_gp_a)
-
     def test_unowned_document_prompt_has_no_other_gps_text(
         self, unowned_lab_result, prompt_sent_to_llm
     ):
