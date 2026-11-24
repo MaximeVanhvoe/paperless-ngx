@@ -1,3 +1,4 @@
+import ipaddress
 import itertools
 import logging
 import os
@@ -81,6 +82,7 @@ from guardian.utils import get_group_obj_perms_model
 from guardian.utils import get_user_obj_perms_model
 from langdetect import detect
 from packaging import version as packaging_version
+from python_ipware import IpWare
 from redis import Redis
 from rest_framework import parsers
 from rest_framework import serializers
@@ -282,6 +284,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("paperless.api")
+share_link_logger = logging.getLogger("paperless.sharelinks")
 
 # Crossover point for intersect_and_order: below this count use a targeted
 # IN-clause query; at or above this count fall back to a full-table scan +
@@ -4891,9 +4894,43 @@ class ShareLinkBundleViewSet(PassUserMixin, ModelViewSet[ShareLinkBundle]):
         return Response(serializer.data)
 
 
+def _truncated_client_ip(request) -> str | None:
+    """
+    Client IP reduced to its /24 (IPv4) or /48 (IPv6) network, so access logs
+    keep enough to spot abuse without storing the full address.
+    """
+    client_ip, _ = IpWare(proxy_list=settings.TRUSTED_PROXIES).get_client_ip(
+        meta=request.META,
+    )
+    if client_ip is None:
+        return None
+    prefix = 24 if client_ip.version == 4 else 48
+    return str(ipaddress.ip_network(f"{client_ip}/{prefix}", strict=False))
+
+
 class SharedLinkView(View):
     authentication_classes = []
     permission_classes = []
+
+    def _log_access(
+        self,
+        request,
+        slug: str,
+        outcome: str,
+        *,
+        document_id: int | None = None,
+        bundle_id: int | None = None,
+    ) -> None:
+        share_link_logger.info(
+            "Share link access: time=%s slug=%s document_id=%s bundle_id=%s "
+            "outcome=%s client=%s",
+            timezone.now().isoformat(),
+            slug,
+            document_id,
+            bundle_id,
+            outcome,
+            _truncated_client_ip(request),
+        )
 
     def get(self, request, slug):
         share_link = ShareLink.objects.filter(slug=slug).first()
@@ -4902,28 +4939,50 @@ class SharedLinkView(View):
                 share_link.expiration is not None
                 and share_link.expiration < timezone.now()
             ):
+                self._log_access(
+                    request,
+                    slug,
+                    "expired",
+                    document_id=share_link.document_id,
+                )
                 return HttpResponseRedirect("/accounts/login/?sharelink_expired=1")
             try:
-                return serve_file(
+                response = serve_file(
                     doc=share_link.document,
                     use_archive=share_link.file_version == ShareLink.FileVersion.ARCHIVE
                     and share_link.document.has_archive_version,
                     disposition="inline",
                 )
             except FileNotFoundError:
+                self._log_access(
+                    request,
+                    slug,
+                    "file_missing",
+                    document_id=share_link.document_id,
+                )
                 return HttpResponseRedirect("/accounts/login/?sharelink_notfound=1")
+            self._log_access(
+                request,
+                slug,
+                "served",
+                document_id=share_link.document_id,
+            )
+            return response
 
         bundle = ShareLinkBundle.objects.filter(slug=slug).first()
         if bundle is None:
+            self._log_access(request, slug, "not_found")
             return HttpResponseRedirect("/accounts/login/?sharelink_notfound=1")
 
         if bundle.expiration is not None and bundle.expiration < timezone.now():
+            self._log_access(request, slug, "bundle_expired", bundle_id=bundle.pk)
             return HttpResponseRedirect("/accounts/login/?sharelink_expired=1")
 
         if bundle.status in {
             ShareLinkBundle.Status.PENDING,
             ShareLinkBundle.Status.PROCESSING,
         }:
+            self._log_access(request, slug, "bundle_pending", bundle_id=bundle.pk)
             return HttpResponse(
                 _(
                     "The share link bundle is still being prepared. Please try again later.",
@@ -4938,6 +4997,12 @@ class SharedLinkView(View):
             or file_path is None
             or not file_path.exists()
         ):
+            self._log_access(
+                request,
+                slug,
+                "bundle_unavailable",
+                bundle_id=bundle.pk,
+            )
             return HttpResponse(
                 _(
                     "The share link bundle is unavailable.",
@@ -4945,6 +5010,7 @@ class SharedLinkView(View):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+        self._log_access(request, slug, "bundle_served", bundle_id=bundle.pk)
         response = FileResponse(file_path.open("rb"), content_type="application/zip")
         short_slug = bundle.slug[:12]
         download_name = f"paperless-share-{short_slug}.zip"

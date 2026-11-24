@@ -275,9 +275,6 @@ class TestIssue8ShareLinks:
 
     # ---- Accountability --------------------------------------------
 
-    @pytest.mark.xfail(
-        reason="PIA issue 8: anonymous share-link access leaves no log record.",
-    )
     def test_share_link_access_is_logged(
         self,
         discharge_letter_jan_peeters,
