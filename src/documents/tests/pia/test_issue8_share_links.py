@@ -278,8 +278,9 @@ class TestIssue8ShareLinks:
     ) -> None:
         """An anonymous visit to /share/<slug>/ must be recorded in the application log.
 
-        The test asserts that some record at INFO or above mentions the slug,
-        without coupling to a specific logger name.
+        The record must come from the "paperless.sharelinks" logger and name
+        the share link and document by id. The slug is a bearer secret and
+        must not appear in any log record.
         """
         mocker.patch(
             "documents.views.serve_file",
@@ -298,9 +299,19 @@ class TestIssue8ShareLinks:
         slug = link.slug
         with caplog.at_level(logging.INFO):
             _anonymous_django_client().get(f"/share/{slug}/")
+        messages = [
+            record.getMessage()
+            for record in caplog.records
+            if record.name == "paperless.sharelinks" and record.levelno >= logging.INFO
+        ]
         assert any(
-            slug in record.getMessage() for record in caplog.records
-        ), "no log record mentioned the share-link slug"
+            f"share_link_id={link.pk} " in message
+            and f"document_id={discharge_letter_jan_peeters.pk} " in message
+            for message in messages
+        ), f"no paperless.sharelinks record with link and document id: {messages}"
+        assert not any(slug in record.getMessage() for record in caplog.records), (
+            "the share-link slug was written to the log"
+        )
 
     # ---- Retention --------------------------------------------------
 

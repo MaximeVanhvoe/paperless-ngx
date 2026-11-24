@@ -4915,17 +4915,18 @@ class SharedLinkView(View):
     def _log_access(
         self,
         request,
-        slug: str,
         outcome: str,
         *,
+        share_link_id: int | None = None,
         document_id: int | None = None,
         bundle_id: int | None = None,
     ) -> None:
+        # The slug is a bearer secret, so it is never written to the log.
         share_link_logger.info(
-            "Share link access: time=%s slug=%s document_id=%s bundle_id=%s "
-            "outcome=%s client=%s",
+            "Share link access: time=%s share_link_id=%s document_id=%s "
+            "bundle_id=%s outcome=%s client=%s",
             timezone.now().isoformat(),
-            slug,
+            share_link_id,
             document_id,
             bundle_id,
             outcome,
@@ -4941,8 +4942,8 @@ class SharedLinkView(View):
             ):
                 self._log_access(
                     request,
-                    slug,
                     "expired",
+                    share_link_id=share_link.pk,
                     document_id=share_link.document_id,
                 )
                 return HttpResponseRedirect("/accounts/login/?sharelink_expired=1")
@@ -4956,33 +4957,33 @@ class SharedLinkView(View):
             except FileNotFoundError:
                 self._log_access(
                     request,
-                    slug,
                     "file_missing",
+                    share_link_id=share_link.pk,
                     document_id=share_link.document_id,
                 )
                 return HttpResponseRedirect("/accounts/login/?sharelink_notfound=1")
             self._log_access(
                 request,
-                slug,
                 "served",
+                share_link_id=share_link.pk,
                 document_id=share_link.document_id,
             )
             return response
 
         bundle = ShareLinkBundle.objects.filter(slug=slug).first()
         if bundle is None:
-            self._log_access(request, slug, "not_found")
+            self._log_access(request, "not_found")
             return HttpResponseRedirect("/accounts/login/?sharelink_notfound=1")
 
         if bundle.expiration is not None and bundle.expiration < timezone.now():
-            self._log_access(request, slug, "bundle_expired", bundle_id=bundle.pk)
+            self._log_access(request, "bundle_expired", bundle_id=bundle.pk)
             return HttpResponseRedirect("/accounts/login/?sharelink_expired=1")
 
         if bundle.status in {
             ShareLinkBundle.Status.PENDING,
             ShareLinkBundle.Status.PROCESSING,
         }:
-            self._log_access(request, slug, "bundle_pending", bundle_id=bundle.pk)
+            self._log_access(request, "bundle_pending", bundle_id=bundle.pk)
             return HttpResponse(
                 _(
                     "The share link bundle is still being prepared. Please try again later.",
@@ -4999,7 +5000,6 @@ class SharedLinkView(View):
         ):
             self._log_access(
                 request,
-                slug,
                 "bundle_unavailable",
                 bundle_id=bundle.pk,
             )
@@ -5010,7 +5010,7 @@ class SharedLinkView(View):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        self._log_access(request, slug, "bundle_served", bundle_id=bundle.pk)
+        self._log_access(request, "bundle_served", bundle_id=bundle.pk)
         response = FileResponse(file_path.open("rb"), content_type="application/zip")
         short_slug = bundle.slug[:12]
         download_name = f"paperless-share-{short_slug}.zip"
