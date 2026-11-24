@@ -222,12 +222,6 @@ class TestIssue8ShareLinks:
         assert response.status_code != 200
         assert not served.called
 
-    @pytest.mark.xfail(
-        reason=(
-            "PIA issue 8: share link silently becomes valid again after the "
-            "document is restored from the trash."
-        ),
-    )
     def test_link_is_revoked_after_document_is_restored(
         self,
         gp_a,

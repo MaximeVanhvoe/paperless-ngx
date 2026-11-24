@@ -550,6 +550,10 @@ class Document(SoftDeleteModel, ModelWithOwner):  # type: ignore[django-manager-
             Document.objects.filter(root_document=self).delete(
                 transaction_id=transaction_id,
             )
+        # Share links are revoked for good rather than soft-deleted with the
+        # document, so restoring it from the trash cannot re-activate a URL
+        # that was handed out earlier.
+        ShareLink.objects.filter(document=self).hard_delete()
         return super().delete(
             *args,
             transaction_id=transaction_id,
