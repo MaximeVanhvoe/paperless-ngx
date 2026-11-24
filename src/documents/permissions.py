@@ -705,6 +705,28 @@ def has_perms_owner_aware(user, perms, obj):
     return obj.owner is None or obj.owner == user or checker.has_perm(perms, obj)
 
 
+def can_share_document(user: User | None, document: Document) -> bool:
+    """
+    Whether ``user`` may create a share link (or bundle) for ``document``.
+
+    Sharing hands the file to anyone holding the URL, so it requires more than
+    view access: an active superuser, the owner of the (root) document, or a
+    user with ``change_document`` both globally and on the document itself.
+    """
+    if user is None or not getattr(user, "is_active", False):
+        return False
+    if user.is_superuser:
+        return True
+    root = get_root_document(document)
+    if root.owner_id == user.pk:
+        return True
+    return user.has_perm("documents.change_document") and has_perms_owner_aware(
+        user,
+        "change_document",
+        root,
+    )
+
+
 class ViewDocumentsPermissions(BasePermission):
     """
     Permissions class that checks for model permissions for only viewing Documents.

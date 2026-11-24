@@ -78,9 +78,9 @@ from documents.models import WorkflowActionEmail
 from documents.models import WorkflowActionWebhook
 from documents.models import WorkflowTrigger
 from documents.parsers import is_mime_type_supported
+from documents.permissions import can_share_document
 from documents.permissions import get_document_count_filter_for_user
 from documents.permissions import get_groups_with_only_permission
-from documents.permissions import has_perms_owner_aware
 from documents.permissions import permitted_document_ids
 from documents.permissions import restrict_queryset_to_visible
 from documents.permissions import set_permissions_for_object
@@ -2888,15 +2888,7 @@ class ShareLinkSerializer(OwnedObjectSerializer):
         return super().create(validated_data)
 
     def validate_document(self, document):
-        if (
-            self.user is not None
-            and self.user.has_perm("documents.view_document")
-            and has_perms_owner_aware(
-                self.user,
-                "view_document",
-                document,
-            )
-        ):
+        if can_share_document(self.user, document):
             return document
         raise PermissionDenied(
             _("Insufficient permissions."),

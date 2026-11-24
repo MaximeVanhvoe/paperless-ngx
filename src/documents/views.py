@@ -174,6 +174,7 @@ from documents.permissions import TrashPermissions
 from documents.permissions import ViewDocumentsPermissions
 from documents.permissions import annotate_document_count_by_ids
 from documents.permissions import annotate_document_count_for_related_queryset
+from documents.permissions import can_share_document
 from documents.permissions import get_document_count_filter_for_user
 from documents.permissions import get_objects_for_user_owner_aware
 from documents.permissions import has_global_statistics_permission
@@ -4802,11 +4803,13 @@ class ShareLinkBundleViewSet(PassUserMixin, ModelViewSet[ShareLinkBundle]):
                 },
             )
 
-        denied_id = (
-            documents_qs.exclude(id__in=permitted_document_ids(request.user))
-            .order_by("pk")
-            .values_list("pk", flat=True)
-            .first()
+        denied_id = next(
+            (
+                document.pk
+                for document in sorted(documents_qs, key=lambda d: d.pk)
+                if not can_share_document(request.user, document)
+            ),
+            None,
         )
         if denied_id is not None:
             raise ValidationError(

@@ -71,7 +71,8 @@ class ShareLinkBundleAPITests(DirectoriesMixin, APITestCase):
         response = self.client.post(self.ENDPOINT, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-        grant_global(requester, "view_document")
+        grant_global(requester, "view_document", "change_document")
+        grant_object(requester, document, "change_document")
         requester = User.objects.get(pk=requester.pk)
         self.client.force_authenticate(requester)
         response = self.client.post(self.ENDPOINT, payload, format="json")
@@ -92,7 +93,12 @@ class ShareLinkBundleAPITests(DirectoriesMixin, APITestCase):
 
     def test_create_bundle_rejects_insufficient_permissions(self) -> None:
         requester = UserFactory(username="bundle_creator")
-        grant_global(requester, "add_sharelinkbundle", "view_document")
+        grant_global(
+            requester,
+            "add_sharelinkbundle",
+            "view_document",
+            "change_document",
+        )
         self.client.force_authenticate(requester)
         document = DocumentFactory(owner=UserFactory(username="document_owner"))
         payload = {

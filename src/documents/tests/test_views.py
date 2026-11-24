@@ -143,7 +143,7 @@ class TestViews(DirectoriesMixin, TestCase):
             codename__contains="sharelink",
         )
         self.user.user_permissions.add(*sharelink_permissions)
-        grant_global(self.user, "view_document")
+        grant_global(self.user, "view_document", "change_document")
         self.user.save()
 
         self.client.force_login(self.user)
@@ -205,7 +205,7 @@ class TestViews(DirectoriesMixin, TestCase):
             codename__contains="sharelink",
         )
         self.user.user_permissions.add(*sharelink_permissions)
-        grant_global(self.user, "view_document")
+        grant_global(self.user, "view_document", "change_document")
         self.client.force_login(self.user)
 
         create_response = self.client.post(

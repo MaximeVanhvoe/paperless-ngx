@@ -4072,6 +4072,21 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
             },
             format="json",
         )
+        # View access alone no longer allows sharing (PIA issue 8)
+        self.assertEqual(create_resp.status_code, status.HTTP_403_FORBIDDEN)
+
+        grant_global(user1, "change_document")
+        grant_object(user1, doc, "change_document")
+        user1 = User.objects.get(pk=user1.pk)
+        self.client.force_authenticate(user1)
+        create_resp = self.client.post(
+            "/api/share_links/",
+            data={
+                "document": doc.pk,
+                "file_version": "original",
+            },
+            format="json",
+        )
         self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(create_resp.data["document"], doc.pk)
 

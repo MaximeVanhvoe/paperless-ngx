@@ -178,12 +178,6 @@ class TestIssue8ShareLinks:
         max_cap = timezone.now() + timedelta(days=7, hours=1)
         assert parse_datetime(response.data["expiration"]) <= max_cap
 
-    @pytest.mark.xfail(
-        reason=(
-            "PIA issue 8: a view-only colleague can create a share link, "
-            "contradicting docs/usage.md which says only owners may share."
-        ),
-    )
     def test_object_viewer_without_change_cannot_create_link(
         self,
         shared_viewer,
