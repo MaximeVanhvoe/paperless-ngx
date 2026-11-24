@@ -240,6 +240,14 @@ def make_expected_schedule(
                 "headers": {"trigger_source": "scheduled"},
             },
         },
+        "Cleanup expired share links": {
+            "task": "documents.tasks.cleanup_expired_share_links",
+            "schedule": crontab(minute=0, hour="2"),
+            "options": {
+                "expires": share_link_cleanup_expire,
+                "headers": {"trigger_source": "scheduled"},
+            },
+        },
         "Cleanup expired share link bundles": {
             "task": "documents.tasks.cleanup_expired_share_link_bundles",
             "schedule": crontab(minute=0, hour="2"),
@@ -298,6 +306,7 @@ class TestParseBeatSchedule:
                     "PAPERLESS_WORKFLOW_SCHEDULED_TASK_CRON": "disable",
                     "PAPERLESS_LLM_INDEX_TASK_CRON": "disable",
                     "PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON": "disable",
+                    "PAPERLESS_SHARE_LINK_CLEANUP_CRON": "disable",
                 },
                 {},
                 id="all-disabled",

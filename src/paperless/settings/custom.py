@@ -156,6 +156,17 @@ def parse_beat_schedule() -> dict:
             },
         },
         {
+            "name": "Cleanup expired share links",
+            "env_key": "PAPERLESS_SHARE_LINK_CLEANUP_CRON",
+            # Default daily at 02:00
+            "env_default": "0 2 * * *",
+            "task": "documents.tasks.cleanup_expired_share_links",
+            "options": {
+                # 1 hour before default schedule sends again
+                "expires": 23.0 * 60.0 * 60.0,
+            },
+        },
+        {
             "name": "Cleanup expired share link bundles",
             "env_key": "PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON",
             # Default daily at 02:00

@@ -1873,6 +1873,14 @@ an expiration further in the future than this limit, are rejected.
 
     Defaults to 7. The minimum is 1.
 
+#### [`PAPERLESS_SHARE_LINK_CLEANUP_CRON=<cron expression>`](#PAPERLESS_SHARE_LINK_CLEANUP_CRON) {#PAPERLESS_SHARE_LINK_CLEANUP_CRON}
+
+: Controls how often Paperless-ngx permanently removes expired share links.
+
+: If set to the string "disable", expired share links are not cleaned up automatically.
+
+    Defaults to `0 2 * * *`, once per day at 02:00.
+
 #### [`PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON=<cron expression>`](#PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON) {#PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON}
 
 : Controls how often Paperless-ngx removes expired share link bundles (and their generated ZIP archives).

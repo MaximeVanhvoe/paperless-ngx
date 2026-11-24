@@ -901,6 +901,20 @@ def build_share_link_bundle(bundle_id: int) -> None:
 
 
 @shared_task
+def cleanup_expired_share_links() -> None:
+    """
+    Permanently delete expired share links, including soft-deleted ones, so
+    their slugs and document references are not retained indefinitely.
+    """
+    count, _ = ShareLink.global_objects.filter(
+        expiration__isnull=False,
+        expiration__lt=timezone.now(),
+    ).hard_delete()
+    if count:
+        logger.info("Deleted %s expired share link(s)", count)
+
+
+@shared_task
 def cleanup_expired_share_link_bundles() -> None:
     now = timezone.now()
     expired_qs = ShareLinkBundle.objects.filter(

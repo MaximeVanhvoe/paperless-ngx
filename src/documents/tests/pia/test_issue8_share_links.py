@@ -30,6 +30,7 @@ from rest_framework.test import APIClient
 
 from documents.models import Document
 from documents.models import ShareLink
+from documents.tasks import cleanup_expired_share_links
 from paperless_testing.factories import DocumentFactory
 from paperless_testing.factories import UserFactory
 from paperless_testing.permissions import grant_global
@@ -300,3 +301,24 @@ class TestIssue8ShareLinks:
         assert any(
             slug in record.getMessage() for record in caplog.records
         ), "no log record mentioned the share-link slug"
+
+    # ---- Retention --------------------------------------------------
+
+    def test_cleanup_removes_only_expired_share_links(
+        self,
+        discharge_letter_jan_peeters,
+    ) -> None:
+        """The periodic cleanup must purge expired links and keep valid ones."""
+        expired = ShareLink.objects.create(
+            document=discharge_letter_jan_peeters,
+            slug="cleanupexpiredaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            expiration=timezone.now() - timedelta(days=1),
+        )
+        valid = ShareLink.objects.create(
+            document=discharge_letter_jan_peeters,
+            slug="cleanupvalidaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            expiration=timezone.now() + timedelta(days=1),
+        )
+        cleanup_expired_share_links()
+        assert not ShareLink.global_objects.filter(pk=expired.pk).exists()
+        assert ShareLink.objects.filter(pk=valid.pk).exists()
