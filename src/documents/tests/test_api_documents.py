@@ -3887,10 +3887,18 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
             mime_type="application/pdf",
             content="this is a document which will have notes added",
         )
-        # never expires
+        # expiration is mandatory (PIA issue 8)
         resp = self.client.post(
             "/api/share_links/",
             data={
+                "document": doc.pk,
+            },
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        resp = self.client.post(
+            "/api/share_links/",
+            data={
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
                 "document": doc.pk,
             },
         )
@@ -3933,7 +3941,7 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
         )
 
         self.assertGreater(len(resp_data[1]["slug"]), 0)
-        self.assertIsNone(resp_data[1]["expiration"])
+        self.assertIsNotNone(resp_data[1]["expiration"])
         self.assertEqual(
             (parser.isoparse(resp_data[0]["expiration"]) - timezone.now()).days,
             6,
@@ -4044,6 +4052,7 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
             data={
                 "document": doc.pk,
                 "file_version": "original",
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
             },
             format="json",
         )
@@ -4056,6 +4065,7 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
             data={
                 "document": doc.pk,
                 "file_version": "original",
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
             },
             format="json",
         )
@@ -4069,6 +4079,7 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
             data={
                 "document": doc.pk,
                 "file_version": "original",
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
             },
             format="json",
         )
@@ -4084,6 +4095,7 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
             data={
                 "document": doc.pk,
                 "file_version": "original",
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
             },
             format="json",
         )

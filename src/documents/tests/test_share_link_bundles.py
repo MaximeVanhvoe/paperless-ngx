@@ -621,6 +621,7 @@ class ShareLinkBundleSerializerTests(DirectoriesMixin, APITestCase):
             data={
                 "document_ids": [self.document.pk, 9999],
                 "file_version": ShareLink.FileVersion.ORIGINAL,
+                "expiration_days": 7,
             },
         )
 

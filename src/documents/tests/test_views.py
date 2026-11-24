@@ -153,6 +153,7 @@ class TestViews(DirectoriesMixin, TestCase):
             {
                 "document": doc.pk,
                 "file_version": "original",
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
             },
         )
         sl1 = ShareLink.objects.get(document=doc)
@@ -210,7 +211,10 @@ class TestViews(DirectoriesMixin, TestCase):
 
         create_response = self.client.post(
             "/api/share_links/",
-            {"document": doc.pk},
+            {
+                "document": doc.pk,
+                "expiration": (timezone.now() + timedelta(days=1)).isoformat(),
+            },
         )
         self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
         share_link = ShareLink.objects.get(document=doc)

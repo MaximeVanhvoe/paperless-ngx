@@ -1154,6 +1154,13 @@ EMPTY_TRASH_DELAY = max(get_int_from_env("PAPERLESS_EMPTY_TRASH_DELAY", 30), 1)
 
 
 ###############################################################################
+# Share links                                                                 #
+###############################################################################
+# Upper bound (in days) for the lifetime of share links and share link bundles.
+SHARE_LINK_MAX_DAYS = max(get_int_from_env("PAPERLESS_SHARE_LINK_MAX_DAYS", 7), 1)
+
+
+###############################################################################
 # Oauth Email                                                                 #
 ###############################################################################
 OAUTH_CALLBACK_BASE_URL = os.getenv("PAPERLESS_OAUTH_CALLBACK_BASE_URL")

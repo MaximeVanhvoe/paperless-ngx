@@ -1865,6 +1865,14 @@ processing. This only has an effect if
 
 ## Share links
 
+#### [`PAPERLESS_SHARE_LINK_MAX_DAYS=<num>`](#PAPERLESS_SHARE_LINK_MAX_DAYS) {#PAPERLESS_SHARE_LINK_MAX_DAYS}
+
+: Maximum lifetime of a share link or share link bundle, in days. Every
+share link must have an expiration date; requests without one, or with
+an expiration further in the future than this limit, are rejected.
+
+    Defaults to 7. The minimum is 1.
+
 #### [`PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON=<cron expression>`](#PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON) {#PAPERLESS_SHARE_LINK_BUNDLE_CLEANUP_CRON}
 
 : Controls how often Paperless-ngx removes expired share link bundles (and their generated ZIP archives).

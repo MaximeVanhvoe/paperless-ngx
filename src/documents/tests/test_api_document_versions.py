@@ -1093,7 +1093,11 @@ class TestVersionActionPermissions(DirectoriesMixin, APITestCase):
             self.assertEqual(response.status_code, 403)
             response = self.client.post(
                 "/api/share_link_bundles/",
-                {"document_ids": [self.version.pk], "file_version": "original"},
+                {
+                    "document_ids": [self.version.pk],
+                    "file_version": "original",
+                    "expiration_days": 1,
+                },
                 format="json",
             )
             self.assertEqual(response.status_code, 400)
@@ -1134,7 +1138,11 @@ class TestVersionActionPermissions(DirectoriesMixin, APITestCase):
         self.assertEqual(response.data[0]["id"], note.pk)
         response = self.client.post(
             "/api/share_links/",
-            {"document": self.version.pk, "file_version": "original"},
+            {
+                "document": self.version.pk,
+                "file_version": "original",
+                "expiration": (timezone.now() + datetime.timedelta(days=1)).isoformat(),
+            },
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(ShareLink.objects.get().document_id, self.version.pk)
@@ -1143,7 +1151,11 @@ class TestVersionActionPermissions(DirectoriesMixin, APITestCase):
         self.assertEqual(len(response.data), 1)
         response = self.client.post(
             "/api/share_link_bundles/",
-            {"document_ids": [self.version.pk], "file_version": "original"},
+            {
+                "document_ids": [self.version.pk],
+                "file_version": "original",
+                "expiration_days": 1,
+            },
             format="json",
         )
         self.assertEqual(response.status_code, 201)

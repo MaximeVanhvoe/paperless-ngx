@@ -130,9 +130,6 @@ class TestIssue8ShareLinks:
 
     # ---- Privacy xfails ---------------------------------------------
 
-    @pytest.mark.xfail(
-        reason="PIA issue 8: a share link without expiration is accepted (no cap).",
-    )
     def test_link_without_expiration_is_rejected_or_capped(
         self,
         gp_a,
@@ -153,9 +150,6 @@ class TestIssue8ShareLinks:
         max_cap = timezone.now() + timedelta(days=7, hours=1)
         assert parse_datetime(expiration_raw) <= max_cap
 
-    @pytest.mark.xfail(
-        reason="PIA issue 8: an expiration far in the future is not capped.",
-    )
     def test_expiration_beyond_maximum_is_rejected_or_capped(
         self,
         gp_a,

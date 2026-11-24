@@ -2882,10 +2882,28 @@ class ShareLinkSerializer(OwnedObjectSerializer):
             "document_title",
             "file_version",
         )
+        extra_kwargs = {
+            "expiration": {"required": True, "allow_null": False},
+        }
 
     def create(self, validated_data):
         validated_data["slug"] = get_random_string(50)
         return super().create(validated_data)
+
+    def validate_expiration(self, expiration):
+        # Small leeway for clock skew between the client and the server.
+        latest = timezone.now() + timedelta(
+            days=settings.SHARE_LINK_MAX_DAYS,
+            minutes=5,
+        )
+        if expiration > latest:
+            raise serializers.ValidationError(
+                _(
+                    "Expiration may be at most %(days)s days in the future.",
+                )
+                % {"days": settings.SHARE_LINK_MAX_DAYS},
+            )
+        return expiration
 
     def validate_document(self, document):
         if can_share_document(self.user, document):
@@ -2902,8 +2920,6 @@ class ShareLinkBundleSerializer(OwnedObjectSerializer):
         write_only=True,
     )
     expiration_days = serializers.IntegerField(
-        required=False,
-        allow_null=True,
         min_value=1,
         write_only=True,
     )
@@ -2943,6 +2959,14 @@ class ShareLinkBundleSerializer(OwnedObjectSerializer):
             "document_count",
         )
 
+    def validate_expiration_days(self, value):
+        if value > settings.SHARE_LINK_MAX_DAYS:
+            raise serializers.ValidationError(
+                _("Expiration may be at most %(days)s days in the future.")
+                % {"days": settings.SHARE_LINK_MAX_DAYS},
+            )
+        return value
+
     def validate_document_ids(self, value):
         unique_ids = set(value)
         if len(unique_ids) != len(value):
@@ -2953,14 +2977,11 @@ class ShareLinkBundleSerializer(OwnedObjectSerializer):
 
     def create(self, validated_data):
         document_ids = validated_data.pop("document_ids")
-        expiration_days = validated_data.pop("expiration_days", None)
+        expiration_days = validated_data.pop("expiration_days")
         validated_data["slug"] = get_random_string(50)
-        if expiration_days:
-            validated_data["expiration"] = timezone.now() + timedelta(
-                days=expiration_days,
-            )
-        else:
-            validated_data["expiration"] = None
+        validated_data["expiration"] = timezone.now() + timedelta(
+            days=expiration_days,
+        )
 
         share_link_bundle = super().create(validated_data)
 
