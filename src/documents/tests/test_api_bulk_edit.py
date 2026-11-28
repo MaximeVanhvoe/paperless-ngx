@@ -1519,6 +1519,8 @@ class TestBulkEditAPI(DirectoriesMixin, APITestCase):
         mock_merge.assert_not_called()
 
     @mock.patch("documents.serialisers.bulk_edit.set_permissions")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_insufficient_permissions_ownership(self, m) -> None:
         """
         GIVEN:
@@ -1573,6 +1575,8 @@ class TestBulkEditAPI(DirectoriesMixin, APITestCase):
         m.assert_called_once()
 
     @mock.patch("documents.serialisers.bulk_edit.set_storage_path")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_insufficient_permissions_edit(self, m) -> None:
         """
         GIVEN:
@@ -1844,6 +1848,8 @@ class TestBulkEditAPI(DirectoriesMixin, APITestCase):
         self.assertEqual(m.call_args.kwargs["pages"], [[1], [2, 3, 4], [5]])
 
     @mock.patch("documents.views.bulk_edit.rotate")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_rotate_insufficient_permissions(self, m) -> None:
         self.doc1.owner = User.objects.get(username="temp_admin")
         self.doc1.save()
@@ -1905,6 +1911,8 @@ class TestBulkEditAPI(DirectoriesMixin, APITestCase):
         self.assertEqual(kwargs["user"], self.user)
 
     @mock.patch("documents.views.bulk_edit.merge")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_merge_and_delete_insufficient_permissions(self, m) -> None:
         self.doc1.owner = User.objects.get(username="temp_admin")
         self.doc1.save()
@@ -2332,6 +2340,8 @@ class TestBulkEditAPI(DirectoriesMixin, APITestCase):
         m.assert_not_called()
 
     @mock.patch("documents.views.bulk_edit.edit_pdf")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_edit_pdf_insufficient_permissions(self, m) -> None:
         self.doc1.owner = User.objects.get(username="temp_admin")
         self.doc1.save()
@@ -2482,6 +2492,8 @@ class TestBulkEditAPI(DirectoriesMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @mock.patch("documents.views.bulk_edit.remove_password")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_remove_password_insufficient_permissions(self, m) -> None:
         self.doc1.owner = User.objects.get(username="temp_admin")
         self.doc1.save()

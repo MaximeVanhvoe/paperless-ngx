@@ -100,6 +100,8 @@ class TestApiObjects(DirectoriesMixin, APITestCase):
         results = response.data["results"]
         self.assertEqual(len(results), 2)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_correspondent_last_correspondence(self) -> None:
         """
         GIVEN:

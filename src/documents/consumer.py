@@ -409,6 +409,9 @@ class ConsumerPlugin(
         # Preflight has already run including progress update to 0%
         self.log.info(f"Consuming {self.filename}")
 
+        if self.input_doc.root_document_id is None:
+            self._apply_default_owner()
+
         # For the actual work, copy the file into a tempdir
         with tempfile.TemporaryDirectory(
             prefix="paperless-ngx",
@@ -818,6 +821,31 @@ class ConsumerPlugin(
         document.refresh_from_db()
 
         return ConsumeFileSuccessResult(document_id=document.pk)
+
+    def _apply_default_owner(self) -> None:
+        """
+        Give a document that would otherwise stay unowned the owner from
+        PAPERLESS_CONSUMER_DEFAULT_OWNER. This is the one place every intake
+        path (consume folder, mail rules, API uploads) passes through, after
+        consumption-triggered workflows have filled in the overrides, so an
+        owner set by the upload, a mail rule or a workflow always wins.
+        Workflows triggered on "document added" run later and may still
+        replace this owner.
+        """
+        if self.metadata.owner_id is not None or not settings.CONSUMER_DEFAULT_OWNER:
+            return
+        default_owner = User.objects.filter(
+            username=settings.CONSUMER_DEFAULT_OWNER,
+        ).first()
+        if default_owner is None:
+            self.log.warning(
+                f"PAPERLESS_CONSUMER_DEFAULT_OWNER is set to "
+                f"'{settings.CONSUMER_DEFAULT_OWNER}', but no user with that "
+                f"username exists; {self.filename} will have no owner",
+            )
+            return
+        self.log.debug(f"Assigning default owner {default_owner.username}")
+        self.metadata.owner_id = default_owner.pk
 
     def _parse_title_placeholders(self, title: str) -> str:
         local_added = timezone.localtime(timezone.now())

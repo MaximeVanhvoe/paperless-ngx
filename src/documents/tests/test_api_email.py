@@ -329,6 +329,8 @@ class TestEmail(DirectoriesMixin, SampleDirMixin, APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_email_only_requires_view_permission(self) -> None:
         """
         GIVEN:

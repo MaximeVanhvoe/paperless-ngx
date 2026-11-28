@@ -355,13 +355,17 @@ def build_permission_filter(
     schema: tantivy.Schema,
     user: AbstractUser,
     viewer_group_ids: Iterable[int] = (),
+    *,
+    include_unowned: bool | None = None,
 ) -> tantivy.Query:
     """
     Build a query filter for user document permissions.
 
     Creates a query that matches only documents visible to the specified user
     according to paperless-ngx permission rules:
-    - Public documents (no owner) are visible to all users
+    - Documents without an owner are visible to all users only when
+      ``include_unowned`` is true (default: PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE);
+      otherwise they need an explicit user or group grant like any other
     - Private documents are visible to their owner
     - Documents explicitly shared with the user are visible
     - Documents shared with one of the user's current groups are visible
@@ -370,26 +374,31 @@ def build_permission_filter(
         schema: Tantivy schema for field validation
         user: User to check permissions for
         viewer_group_ids: Current group memberships for the user
+        include_unowned: Whether documents without an owner match; None means
+            settings.UNOWNED_DOCUMENTS_VISIBLE
 
     Returns:
         Tantivy query that filters results to visible documents
     """
-    owner_any = tantivy.Query.exists_query("owner_id")
-    no_owner = tantivy.Query.boolean_query(
-        [
-            (tantivy.Occur.Must, tantivy.Query.all_query()),
-            (tantivy.Occur.MustNot, owner_any),
-        ],
-    )
+    if include_unowned is None:
+        include_unowned = settings.UNOWNED_DOCUMENTS_VISIBLE
     owned = tantivy.Query.term_query(schema, "owner_id", user.pk)
     shared = tantivy.Query.term_query(schema, "viewer_id", user.pk)
     group_shared = [
         tantivy.Query.term_query(schema, "viewer_group_id", group_id)
         for group_id in viewer_group_ids
     ]
-    return tantivy.Query.disjunction_max_query(
-        [no_owner, owned, shared, *group_shared],
-    )
+    clauses = [owned, shared, *group_shared]
+    if include_unowned:
+        owner_any = tantivy.Query.exists_query("owner_id")
+        no_owner = tantivy.Query.boolean_query(
+            [
+                (tantivy.Occur.Must, tantivy.Query.all_query()),
+                (tantivy.Occur.MustNot, owner_any),
+            ],
+        )
+        clauses.insert(0, no_owner)
+    return tantivy.Query.disjunction_max_query(clauses)
 
 
 class TantivyBackend:

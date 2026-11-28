@@ -6,6 +6,7 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal import auth as totp_auth
 from django.contrib.auth.models import Group
 from django.contrib.auth.models import User
+from django.test import override_settings
 from guardian.shortcuts import get_perms
 from guardian.shortcuts import get_users_with_perms
 from rest_framework import status
@@ -167,6 +168,8 @@ class TestApiAuth(DirectoriesMixin, APITestCase):
             status.HTTP_200_OK,
         )
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_api_get_object_permissions(self) -> None:
         user1 = UserFactory(username="test1")
         user2 = UserFactory(username="test2")
@@ -498,6 +501,8 @@ class TestApiAuth(DirectoriesMixin, APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_dynamic_permissions_fields(self) -> None:
         user1 = UserFactory(username="user1")
         grant_global(user1, "view_document")

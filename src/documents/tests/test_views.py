@@ -112,6 +112,8 @@ class TestViews(DirectoriesMixin, TestCase):
             f"/paperless{config.app_logo}",
         )
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_share_link_views(self) -> None:
         """
         GIVEN:
@@ -179,6 +181,8 @@ class TestViews(DirectoriesMixin, TestCase):
         self.assertEqual(response.request["PATH_INFO"], "/accounts/login/")
         self.assertContains(response, b"Share link has expired")
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_share_link_archive_falls_back_to_original(self) -> None:
         """
         GIVEN:
@@ -403,6 +407,8 @@ class TestAISuggestions(DirectoriesMixin, TestCase):
         AI_ENABLED=True,
         LLM_BACKEND="mock_backend",
     )
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_ai_suggestions_cache_hit_re_filters_for_narrower_requester(
         self,
         mock_refresh_cache,
@@ -852,6 +858,8 @@ class TestAISuggestions(DirectoriesMixin, TestCase):
         AI_ENABLED=True,
         LLM_BACKEND="mock_backend",
     )
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_ai_suggestions_existing_id_not_visible_falls_through_to_suggested(
         self,
         mock_get_ai_classification,
@@ -1017,6 +1025,8 @@ class TestAIChatStreamingView(DirectoriesMixin, TestCase):
 
     @patch("documents.views.stream_chat_with_documents")
     @override_settings(AI_ENABLED=True)
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_post_with_document_id(self, mock_stream_chat) -> None:
         self.grant_view_document_permission()
         mock_stream_chat.return_value = iter([b"data"])

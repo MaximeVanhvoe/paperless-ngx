@@ -179,6 +179,7 @@ from documents.permissions import get_objects_for_user_owner_aware
 from documents.permissions import has_global_statistics_permission
 from documents.permissions import has_perms_owner_aware
 from documents.permissions import has_system_status_permission
+from documents.permissions import hides_unowned_objects
 from documents.permissions import permitted_document_ids
 from documents.permissions import permitted_object_ids
 from documents.permissions import set_permissions_for_objects
@@ -2025,10 +2026,24 @@ class DocumentViewSet(
         try:
             doc = Document.objects.select_related("root_document__owner").get(pk=pk)
             root_doc = get_root_document(doc)
-            if not request.user.has_perm("auditlog.view_logentry") or (
-                root_doc.owner is not None
-                and root_doc.owner != request.user
-                and not request.user.is_superuser
+            # An unowned document is only public while unowned documents are
+            # visible to everyone; otherwise it needs an object-level grant.
+            unowned_hidden = root_doc.owner is None and hides_unowned_objects(Document)
+            if (
+                not request.user.has_perm("auditlog.view_logentry")
+                or (
+                    root_doc.owner is not None
+                    and root_doc.owner != request.user
+                    and not request.user.is_superuser
+                )
+                or (
+                    unowned_hidden
+                    and not has_perms_owner_aware(
+                        request.user,
+                        "view_document",
+                        root_doc,
+                    )
+                )
             ):
                 return HttpResponseForbidden(
                     "Insufficient permissions",
@@ -3001,8 +3016,12 @@ class DocumentOperationPermissionMixin(PassUserMixin, DocumentSelectionMixin):
                 "root_document__owner",
             ).filter(pk__in=documents)
         }
+        # An unowned document only counts as the user's own while unowned
+        # documents are visible to everyone (PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE).
+        unowned_counts_as_owned = not hides_unowned_objects(Document)
         user_is_owner_of_all_documents = all(
-            (doc.owner == user or doc.owner is None) for doc in root_docs
+            (doc.owner == user or (doc.owner is None and unowned_counts_as_owned))
+            for doc in root_docs
         )
 
         # check global and object permissions for all documents

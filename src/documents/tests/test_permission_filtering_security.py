@@ -67,15 +67,31 @@ class TestPermittedDocumentIdsSecurity:
             expected_hidden=[strangers_doc.pk],
         )
 
-    def test_unowned_document_visible_to_everyone(self):
+    @pytest.mark.parametrize("unowned_visible", [True, False])
+    def test_unowned_document_visible_to_everyone(self, settings, unowned_visible):
+        # PIA issue 1: unowned documents are only public when
+        # PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE is set (default: hidden).
+        settings.UNOWNED_DOCUMENTS_VISIBLE = unowned_visible
         user = UserFactory(username="alice")
         unowned = DocumentFactory(owner=None)
 
         assert_visible_document_ids(
             permitted_document_ids(user),
-            expected_visible=[unowned.pk],
-            expected_hidden=[],
+            expected_visible=[unowned.pk] if unowned_visible else [],
+            expected_hidden=[] if unowned_visible else [unowned.pk],
         )
+
+    def test_unowned_document_visible_with_object_grant(self, settings):
+        # PIA issue 1: with unowned documents hidden, an object-level grant
+        # still makes an unowned document visible.
+        settings.UNOWNED_DOCUMENTS_VISIBLE = False
+        grantee = UserFactory(username="alice")
+        other = UserFactory(username="mallory")
+        unowned = DocumentFactory(owner=None)
+        grant_object(grantee, unowned, "view_document")
+
+        assert unowned.pk in set(permitted_document_ids(grantee))
+        assert unowned.pk not in set(permitted_document_ids(other))
 
     def test_explicit_user_permission_grants_visibility(self):
         grantee = UserFactory(username="alice")
@@ -143,15 +159,21 @@ class TestPermittedDocumentIdsSecurity:
             expected_hidden=[],
         )
 
-    def test_anonymous_user_sees_only_unowned_documents(self):
+    @pytest.mark.parametrize("unowned_visible", [True, False])
+    def test_anonymous_user_sees_only_unowned_documents(
+        self,
+        settings,
+        unowned_visible,
+    ):
+        settings.UNOWNED_DOCUMENTS_VISIBLE = unowned_visible
         owner = UserFactory(username="owner")
         owned = DocumentFactory(owner=owner)
         unowned = DocumentFactory(owner=None)
 
         assert_visible_document_ids(
             permitted_document_ids(AnonymousUser()),
-            expected_visible=[unowned.pk],
-            expected_hidden=[owned.pk],
+            expected_visible=[unowned.pk] if unowned_visible else [],
+            expected_hidden=[owned.pk] if unowned_visible else [owned.pk, unowned.pk],
         )
 
 
@@ -201,10 +223,17 @@ class TestPermittedDocumentIdsVersions:
             pytest.param("user", "other", True, id="foreign-version-of-own-root"),
             pytest.param("user", "nobody", True, id="unowned-version-of-own-root"),
             pytest.param("nobody", "other", True, id="private-version-of-unowned-root"),
+            pytest.param(
+                "nobody",
+                "other",
+                False,
+                id="private-version-of-hidden-unowned-root",
+            ),
         ],
     )
     def test_version_follows_root_owner(
         self,
+        settings,
         root_owner: str,
         version_owner: str,
         *,
@@ -218,6 +247,10 @@ class TestPermittedDocumentIdsVersions:
         THEN:
             - The version is visible exactly when its root is
         """
+        # PIA issue 1: an unowned root is only public while unowned documents
+        # are visible; the "hidden" row checks the default.
+        if root_owner == "nobody":
+            settings.UNOWNED_DOCUMENTS_VISIBLE = expected_visible
         user = UserFactory()
         owners = {"user": user, "other": UserFactory(), "nobody": None}
         root = DocumentFactory(owner=owners[root_owner])
@@ -373,6 +406,7 @@ class TestPermittedDocumentIdsVersions:
             permitted_document_ids(user, perm="delete_document"),
         )
 
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)  # PIA issue 1
     def test_anonymous_sees_versions_of_unowned_roots_only(self) -> None:
         """
         GIVEN:
@@ -392,6 +426,26 @@ class TestPermittedDocumentIdsVersions:
             permitted_document_ids(AnonymousUser()),
             expected_visible=[open_root.pk, open_version.pk],
             expected_hidden=[private_root.pk, private_version.pk],
+        )
+
+    def test_anonymous_sees_no_versions_when_unowned_hidden(self, settings) -> None:
+        """
+        GIVEN:
+            - PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE is false (the default)
+            - An unowned root with a version owned by someone
+        WHEN:
+            - The permitted document ids are resolved for an anonymous user
+        THEN:
+            - Neither the root nor the version is visible (PIA issue 1)
+        """
+        settings.UNOWNED_DOCUMENTS_VISIBLE = False
+        open_root = DocumentFactory(owner=None)
+        open_version = DocumentFactory(root_document=open_root, owner=UserFactory())
+
+        assert_visible_document_ids(
+            permitted_document_ids(AnonymousUser()),
+            expected_visible=[],
+            expected_hidden=[open_root.pk, open_version.pk],
         )
 
     def test_deleted_versions_follow_their_deleted_root(self) -> None:
@@ -490,10 +544,17 @@ class TestHasPermsOwnerAwareVersions:
             pytest.param("other", "user", False, id="own-version-of-private-root"),
             pytest.param("user", "other", True, id="foreign-version-of-own-root"),
             pytest.param("nobody", "other", True, id="private-version-of-unowned-root"),
+            pytest.param(
+                "nobody",
+                "other",
+                False,
+                id="private-version-of-hidden-unowned-root",
+            ),
         ],
     )
     def test_version_follows_root_owner(
         self,
+        settings,
         root_owner: str,
         version_owner: str,
         *,
@@ -507,6 +568,9 @@ class TestHasPermsOwnerAwareVersions:
         THEN:
             - The version is allowed exactly when its root is
         """
+        # PIA issue 1: see TestPermittedDocumentIdsVersions.
+        if root_owner == "nobody":
+            settings.UNOWNED_DOCUMENTS_VISIBLE = expected
         user = UserFactory()
         owners = {"user": user, "other": UserFactory(), "nobody": None}
         root = DocumentFactory(owner=owners[root_owner])

@@ -1606,6 +1606,8 @@ class TestDocumentSearchApi(DirectoriesMixin, APITestCase):
             ),
         )
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_search_filtering_respect_owner(self) -> None:
         """
         GIVEN:
@@ -1662,6 +1664,8 @@ class TestDocumentSearchApi(DirectoriesMixin, APITestCase):
         r = self.client.get(f"/api/documents/?query=test&owner__id__none={u1.id}")
         self.assertEqual(r.data["count"], 3)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_search_filtering_with_object_perms(self) -> None:
         """
         GIVEN:
@@ -1934,6 +1938,8 @@ class TestDocumentSearchApi(DirectoriesMixin, APITestCase):
         self.assertCountEqual(response.data["all"], doc_ids)
 
     @mock.patch("documents.bulk_edit.bulk_update_documents")
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_global_search(self, m) -> None:
         """
         GIVEN:

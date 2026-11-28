@@ -732,6 +732,28 @@ entries created prior to this are not removed. This command allows you to prune 
 prune_audit_logs
 ```
 
+### Assigning an owner to documents without one {#set-default-owner}
+
+Documents without an owner are only visible to superusers and to users with an
+object-level permission, unless
+[`PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE`](configuration.md#PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE)
+is enabled. This command assigns an owner to every existing document without
+one, including documents in the trash, and updates the search index.
+
+```shell
+document_set_default_owner [--owner USERNAME] [--dry-run]
+```
+
+The owner is the user named by
+[`PAPERLESS_CONSUMER_DEFAULT_OWNER`](configuration.md#PAPERLESS_CONSUMER_DEFAULT_OWNER),
+unless `--owner` names another user. The command stops with an error if neither
+is given or the user does not exist. With `--dry-run`, it only lists the
+documents that would get an owner and changes nothing.
+
+Existing view and edit permissions of the documents are kept. Versions of a
+document follow their root document, so only versions of documents without an
+owner are changed.
+
 ### Create superuser {#create-superuser}
 
 If you need to create a superuser, use the following command:

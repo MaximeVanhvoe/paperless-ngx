@@ -1022,12 +1022,18 @@ class TestDuplicateDocumentsPermissions:
         assert len(dupes) == 1
         assert dupes[0]["id"] == doc.pk
 
+    @pytest.mark.parametrize("unowned_visible", [True, False])
     def test_unowned_duplicate_document_is_visible(
         self,
         user_v9_client: APIClient,
         regular_user: User,
+        settings,
+        *,
+        unowned_visible: bool,
     ) -> None:
-        """An unowned duplicate_of document is visible to any authenticated user."""
+        """An unowned duplicate_of document is visible to any authenticated user,
+        unless unowned documents are hidden (PIA issue 1, the default)."""
+        settings.UNOWNED_DOCUMENTS_VISIBLE = unowned_visible
         doc = DocumentFactory(owner=None, title="Shared Doc")
         PaperlessTaskFactory(
             owner=regular_user,
@@ -1038,7 +1044,8 @@ class TestDuplicateDocumentsPermissions:
         response = user_v9_client.get(ENDPOINT)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data[0]["duplicate_documents"]) == 1
+        expected = 1 if unowned_visible else 0
+        assert len(response.data[0]["duplicate_documents"]) == expected
 
     def test_other_users_duplicate_document_is_hidden(
         self,

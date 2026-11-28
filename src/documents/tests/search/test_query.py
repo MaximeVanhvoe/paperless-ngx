@@ -314,10 +314,13 @@ class TestPermissionFilter:
         writer.commit()
         idx.reload()
 
+    @pytest.mark.parametrize("include_unowned", [True, False])
     def test_perm_no_owner_visible_to_any_user(
         self,
         perm_index: tantivy.Index,
         django_user_model: type[AbstractBaseUser],
+        *,
+        include_unowned: bool,
     ) -> None:
         """
         GIVEN:
@@ -326,13 +329,18 @@ class TestPermissionFilter:
             - build_permission_filter() builds a filter for an arbitrary
               user
         THEN:
-            - The document is visible (unowned documents are visible to
-              every user)
+            - The document is visible only when unowned documents are
+              visible to every user (PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE)
         """
         self._add_doc(perm_index, doc_id=1, owner_id=None)
         user = django_user_model(pk=99)
-        perm = build_permission_filter(perm_index.schema, user)
-        assert perm_index.searcher().search(perm, limit=10).count == 1
+        perm = build_permission_filter(
+            perm_index.schema,
+            user,
+            include_unowned=include_unowned,
+        )
+        expected = 1 if include_unowned else 0
+        assert perm_index.searcher().search(perm, limit=10).count == expected
 
     def test_perm_owned_by_user_is_visible(
         self,
@@ -391,10 +399,13 @@ class TestPermissionFilter:
         perm = build_permission_filter(perm_index.schema, user)
         assert perm_index.searcher().search(perm, limit=10).count == 1
 
+    @pytest.mark.parametrize("include_unowned", [True, False])
     def test_perm_only_owned_docs_hidden_from_others(
         self,
         perm_index: tantivy.Index,
         django_user_model: type[AbstractBaseUser],
+        *,
+        include_unowned: bool,
     ) -> None:
         """
         GIVEN:
@@ -403,13 +414,19 @@ class TestPermissionFilter:
             - build_permission_filter() builds a filter for a third user
               (20, who owns neither)
         THEN:
-            - Only the unowned document is visible
+            - Only the unowned document is visible, and only when unowned
+              documents are visible to every user
         """
         self._add_doc(perm_index, doc_id=5, owner_id=10)  # owned by 10
         self._add_doc(perm_index, doc_id=6, owner_id=None)  # unowned
         user = django_user_model(pk=20)
-        perm = build_permission_filter(perm_index.schema, user)
-        assert perm_index.searcher().search(perm, limit=10).count == 1  # only unowned
+        perm = build_permission_filter(
+            perm_index.schema,
+            user,
+            include_unowned=include_unowned,
+        )
+        expected = 1 if include_unowned else 0  # only the unowned one, if any
+        assert perm_index.searcher().search(perm, limit=10).count == expected
 
 
 class TestSearchQueryErrors:

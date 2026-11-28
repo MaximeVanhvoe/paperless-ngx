@@ -81,6 +81,7 @@ from documents.parsers import is_mime_type_supported
 from documents.permissions import get_document_count_filter_for_user
 from documents.permissions import get_groups_with_only_permission
 from documents.permissions import has_perms_owner_aware
+from documents.permissions import hides_unowned_objects
 from documents.permissions import permitted_document_ids
 from documents.permissions import restrict_queryset_to_visible
 from documents.permissions import set_permissions_for_object
@@ -386,7 +387,9 @@ class OwnedObjectSerializer(
         }
 
     def get_user_can_change(self, obj) -> bool:
-        if obj.owner is None or obj.owner == self.user:
+        if obj.owner is None and not hides_unowned_objects(type(obj)):
+            return True
+        if obj.owner is not None and obj.owner == self.user:
             return True
         if self.user is None:
             return False

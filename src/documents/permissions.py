@@ -1,6 +1,7 @@
 from typing import Any
 from typing import TypeVar
 
+from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.auth.models import Permission
 from django.contrib.auth.models import User
@@ -31,6 +32,27 @@ from documents.models import Document
 from documents.versioning import get_root_document
 
 
+def unowned_documents_visible() -> bool:
+    """
+    True when documents without an owner are visible to every user with the
+    global view permission (PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE, the upstream
+    behaviour). When False, an unowned document needs an object-level grant.
+    """
+    return settings.UNOWNED_DOCUMENTS_VISIBLE
+
+
+def hides_unowned_objects(model: Any) -> bool:
+    """
+    True when unowned rows of ``model`` must not be visible by default. Only
+    documents are affected; tags, correspondents and the like stay visible.
+    """
+    return (
+        isinstance(model, type)
+        and issubclass(model, Document)
+        and not unowned_documents_visible()
+    )
+
+
 class PaperlessObjectPermissions(DjangoObjectPermissions):
     """
     A permissions backend that checks for object-level permissions
@@ -48,6 +70,11 @@ class PaperlessObjectPermissions(DjangoObjectPermissions):
     }
 
     def has_object_permission(self, request, view, obj):
+        if isinstance(obj, Document) and hides_unowned_objects(Document):
+            root = get_root_document(obj)
+            if root.owner_id is None:
+                # An unowned document needs an object-level grant on its root.
+                return super().has_object_permission(request, view, root)
         if hasattr(obj, "owner") and obj.owner is not None:
             if request.user == obj.owner:
                 return True
@@ -391,8 +418,11 @@ def permitted_object_ids(
         owner_field, key_field = "authorizing_owner", "authorizing_id"
         base_qs = annotate_authorizing_fields(base_qs, parent_field)
     unowned = Q(**{f"{owner_field}__isnull": True})
+    hide_unowned = hides_unowned_objects(model)
 
     if user is None or not getattr(user, "is_authenticated", False):
+        if hide_unowned:
+            return base_qs.none().values_list("id", flat=True)
         return base_qs.filter(unowned).values_list("id", flat=True)
 
     # Deactivated users get nothing, deactivated superusers included, so this
@@ -430,11 +460,13 @@ def permitted_object_ids(
     ).values_list("object_pk", flat=True)
     permitted_keys = user_keys.union(group_keys, all=True)
 
+    visible = Q(**{owner_field: user.pk}) | Q(permitted_key__in=permitted_keys)
+    if not hide_unowned:
+        visible |= unowned
+
     return (
         base_qs.annotate(permitted_key=Cast(key_field, CharField(max_length=64)))
-        .filter(
-            Q(**{owner_field: user.pk}) | unowned | Q(permitted_key__in=permitted_keys),
-        )
+        .filter(visible)
         .values_list("id", flat=True)
     )
 
@@ -659,6 +691,8 @@ def get_objects_for_user_owner_aware(
     """
     Returns objects the user owns, are unowned, or has explicit perms.
     When include_deleted is True, soft-deleted items are also included.
+    Unowned documents are left out unless PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE
+    is set (see ``hides_unowned_objects``).
 
     Legacy slow path (guardian-backed, O(n) style permission resolution).
     Most queryset-filtering call sites have migrated onto
@@ -674,13 +708,15 @@ def get_objects_for_user_owner_aware(
     )
 
     objects_owned = manager.filter(owner=user)
-    objects_unowned = manager.filter(owner__isnull=True)
     objects_with_perms = get_objects_for_user(
         user=user,
         perms=perms,
         klass=manager.all(),
         accept_global_perms=False,
     )
+    if hides_unowned_objects(Model):
+        return objects_owned | objects_with_perms
+    objects_unowned = manager.filter(owner__isnull=True)
     return objects_owned | objects_unowned | objects_with_perms
 
 
@@ -698,11 +734,18 @@ def has_perms_owner_aware(user, perms, obj):
     ``permitted_document_ids``, so a version's own owner and grants never
     matter. Fetch the root with ``select_related("root_document__owner")`` to
     avoid extra queries.
+
+    An unowned document only counts as permitted with an object-level grant
+    (or for a superuser), unless PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE is set.
     """
     if isinstance(obj, Document):
         obj = get_root_document(obj)
+    if obj.owner is None and not hides_unowned_objects(type(obj)):
+        return True
+    if obj.owner is not None and obj.owner == user:
+        return True
     checker = ObjectPermissionChecker(user)
-    return obj.owner is None or obj.owner == user or checker.has_perm(perms, obj)
+    return checker.has_perm(perms, obj)
 
 
 class ViewDocumentsPermissions(BasePermission):

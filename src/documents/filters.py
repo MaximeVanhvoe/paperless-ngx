@@ -51,6 +51,7 @@ from documents.models import ShareLinkBundle
 from documents.models import StoragePath
 from documents.models import Tag
 from documents.permissions import annotate_authorizing_fields
+from documents.permissions import hides_unowned_objects
 from documents.permissions import permitted_document_ids
 from documents.permissions import permitted_object_ids
 from documents.versioning import annotate_effective_content
@@ -1094,10 +1095,10 @@ class PermittedObjectsFilter(BaseFilterBackend):
             if self.parent_field is not None:
                 queryset = annotate_authorizing_fields(queryset, self.parent_field)
                 owner_field = "authorizing_owner"
-            return queryset.filter(
-                Q(**{owner_field: request.user.pk})
-                | Q(**{f"{owner_field}__isnull": True}),
-            )
+            visible = Q(**{owner_field: request.user.pk})
+            if not hides_unowned_objects(queryset.model):
+                visible |= Q(**{f"{owner_field}__isnull": True})
+            return queryset.filter(visible)
         model = queryset.model
         perm = self.perm_codename or f"view_{model._meta.model_name}"
         return queryset.filter(

@@ -848,6 +848,13 @@ CONSUMER_ENABLE_BARCODES: Final[bool] = get_bool_from_env(
     "PAPERLESS_CONSUMER_ENABLE_BARCODES",
 )
 
+# Username that becomes the owner of every consumed document that would
+# otherwise end up without an owner (consume folder, mail rules without an
+# owner, API uploads without a user). Unset means: leave such documents unowned.
+CONSUMER_DEFAULT_OWNER: Final[str | None] = (
+    os.getenv("PAPERLESS_CONSUMER_DEFAULT_OWNER", "").strip() or None
+)
+
 CONSUMER_BARCODE_TIFF_SUPPORT: Final[bool] = get_bool_from_env(
     "PAPERLESS_CONSUMER_BARCODE_TIFF_SUPPORT",
 )
@@ -1151,6 +1158,18 @@ EMAIL_ENABLE_GPG_DECRYPTOR: Final[bool] = get_bool_from_env(
 # Soft Delete                                                                 #
 ###############################################################################
 EMPTY_TRASH_DELAY = max(get_int_from_env("PAPERLESS_EMPTY_TRASH_DELAY", 30), 1)
+
+
+###############################################################################
+# Unowned documents                                                           #
+###############################################################################
+# When false, a document without an owner is only visible to superusers and to
+# users or groups with an object-level permission on it; the global
+# view_document permission is no longer enough. Only affects documents, not
+# tags, correspondents or other objects without an owner.
+UNOWNED_DOCUMENTS_VISIBLE: Final[bool] = get_bool_from_env(
+    "PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE",
+)
 
 
 ###############################################################################

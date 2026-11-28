@@ -1309,6 +1309,8 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["id"], doc.id)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_document_permissions_filters(self) -> None:
         """
         GIVEN:
@@ -1775,6 +1777,8 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
         self.assertEqual(response.data["documents_inbox"], None)
         self.assertEqual(response.data["inbox_tags"], None)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_statistics_multiple_users(self) -> None:
         """
         GIVEN:
@@ -4322,6 +4326,8 @@ class TestDocumentApi(DirectoriesMixin, ConsumeTaskMixin, APITestCase):
         self.assertEqual(mail.outbox[1].attachments[0][0], expected_filename2)
 
     @mock.patch("django.core.mail.message.EmailMessage.send", side_effect=Exception)
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_email_document_errors(self, mocked_send) -> None:
         """
         GIVEN:

@@ -56,10 +56,14 @@ def group_member() -> User:
 
 
 class TestPermissionFilteringOnIndexedDocuments:
+    @pytest.mark.parametrize("unowned_visible", [True, False])
     def test_unowned_document_is_visible_to_everyone(
         self,
         backend: TantivyBackend,
         stranger: User,
+        settings,
+        *,
+        unowned_visible: bool,
     ) -> None:
         """
         GIVEN:
@@ -68,8 +72,10 @@ class TestPermissionFilteringOnIndexedDocuments:
         WHEN:
             - A stranger (no relation to the document) searches
         THEN:
-            - The document is visible to them
+            - The document is visible to them only when
+              PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE is set (PIA issue 1)
         """
+        settings.UNOWNED_DOCUMENTS_VISIBLE = unowned_visible
         doc = Document.objects.create(
             title="Public Invoice",
             content="invoice total due",
@@ -77,7 +83,8 @@ class TestPermissionFilteringOnIndexedDocuments:
         )
         backend.add_or_update(doc)
 
-        assert backend.search_ids("invoice", user=stranger) == [doc.pk]
+        expected = [doc.pk] if unowned_visible else []
+        assert backend.search_ids("invoice", user=stranger) == expected
 
     def test_owned_document_is_visible_only_to_its_owner(
         self,

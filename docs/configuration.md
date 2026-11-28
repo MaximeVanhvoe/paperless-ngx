@@ -1398,6 +1398,25 @@ don't exist yet.
 
     Defaults to false.
 
+#### [`PAPERLESS_CONSUMER_DEFAULT_OWNER=<username>`](#PAPERLESS_CONSUMER_DEFAULT_OWNER) {#PAPERLESS_CONSUMER_DEFAULT_OWNER}
+
+: Username of the user that becomes the owner of every newly consumed document
+that would otherwise end up without an owner: files from the consumption
+directory, mail attachments from a mail rule that does not assign its owner
+("Assign owner from rule" is off), and API uploads without a user.
+
+    An owner set by the upload itself, by a mail rule or by a
+    [workflow](usage.md#workflows) always takes precedence; workflows triggered
+    on "Document Added" run after consumption and can still replace it. View
+    and edit permissions assigned by a workflow are applied as usual.
+
+    If no user with this username exists, Paperless-ngx logs a warning and the
+    document stays without an owner. Existing documents without an owner are not
+    changed; use the [`document_set_default_owner`](administration.md#set-default-owner)
+    command for those.
+
+    Defaults to unset (documents are left without an owner).
+
 #### [`PAPERLESS_CONSUMER_IGNORE_PATTERNS=<json>`](#PAPERLESS_CONSUMER_IGNORE_PATTERNS) {#PAPERLESS_CONSUMER_IGNORE_PATTERNS}
 
 : Additional regex patterns for files to ignore in the consumption directory. Patterns are matched against filenames only (not full paths)
@@ -1862,6 +1881,33 @@ processing. This only has an effect if
 : Configures the schedule to empty the trash of expired deleted documents.
 
     Defaults to `0 1 * * *`, once per day.
+
+## Unowned documents
+
+#### [`PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE=<bool>`](#PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE) {#PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE}
+
+: Controls who can see a document that has no owner. When false, such a
+document is only visible to superusers and to users or groups that have been
+granted an object-level permission on it; the global "view document"
+permission alone is no longer enough. This applies everywhere a document can
+be seen or inferred: the document list and details, downloads, previews,
+notes, history, full-text search, autocomplete, "more like this", bulk
+editing and downloading, share links, statistics and the document counts of
+tags, correspondents, document types and storage paths.
+
+    When true, documents without an owner are visible to every user with the
+    global "view document" permission, as in earlier versions of Paperless-ngx.
+
+    Only documents are affected; tags, correspondents and other objects without
+    an owner remain visible to every user.
+
+    After upgrading, existing documents without an owner are only visible to
+    superusers until they get an owner or permissions. Set
+    [`PAPERLESS_CONSUMER_DEFAULT_OWNER`](#PAPERLESS_CONSUMER_DEFAULT_OWNER) and
+    run [`document_set_default_owner`](administration.md#set-default-owner) to
+    assign one.
+
+    Defaults to false.
 
 ## Share links
 

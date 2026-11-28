@@ -395,7 +395,9 @@ in the UI by selecting documents and choosing the "Permissions" button.
 For objects created via the web UI (tags, doc types, etc.) the default is to set the current user
 as owner and no extra permissions, but you can explicitly set these under Settings > Permissions.
 
-Documents consumed via the consumption directory do not have an owner or additional permissions set by default, but again, can be controlled with [Workflows](#workflows).
+Documents consumed via the consumption directory, and mail attachments from a mail rule that does not assign its owner, do not have an owner or additional permissions set by default. They can be given one with [Workflows](#workflows), or by setting [`PAPERLESS_CONSUMER_DEFAULT_OWNER`](configuration.md#PAPERLESS_CONSUMER_DEFAULT_OWNER) to a user who becomes the owner of every document that would otherwise stay without one.
+
+A document without an owner is only visible to superusers and to users or groups with an explicit view or edit permission on it; the global "view document" permission is not enough. Set [`PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE`](configuration.md#PAPERLESS_UNOWNED_DOCUMENTS_VISIBLE) to make such documents visible to every user with that global permission, as in earlier versions. Other objects without an owner, such as tags or correspondents, are always visible to every user.
 
 ### Users and Groups
 
@@ -454,7 +456,7 @@ still have "object-level" permissions.
 
 | Type  | Details                                                                                                                                                                                                                                                                                                                                  |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner | By default objects are only visible and editable by their owner.<br/>Only the object owner can grant permissions to other users or groups.<br/>Additionally, only document owners can create share links and add / remove custom fields.<br/>For backwards compatibility objects can have no owner which makes them visible to any user. |
+| Owner | By default objects are only visible and editable by their owner.<br/>Only the object owner can grant permissions to other users or groups.<br/>Additionally, only document owners can create share links and add / remove custom fields.<br/>For backwards compatibility objects can have no owner which makes them visible to any user, except documents: see [Default permissions](#default-permissions). |
 | View  | Confers the ability to view (not edit) a document, tag, etc.<br/>Users without 'view' (or higher) permissions will be shown _'Private'_ in place of the object name for example when viewing a document with a tag for which the user doesn't have permissions.                                                                          |
 | Edit  | Confers the ability to edit (and view) a document, tag, etc.                                                                                                                                                                                                                                                                             |
 

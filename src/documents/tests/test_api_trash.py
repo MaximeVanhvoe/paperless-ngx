@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.core.cache import cache
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -20,6 +21,8 @@ class TestTrashAPI(DirectoriesMixin, APITestCase):
         self.client.force_authenticate(user=self.user)
         cache.clear()
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_api_trash(self) -> None:
         """
         GIVEN:
@@ -80,6 +83,8 @@ class TestTrashAPI(DirectoriesMixin, APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_trash_api_empty_all(self) -> None:
         """
         GIVEN:
@@ -113,6 +118,8 @@ class TestTrashAPI(DirectoriesMixin, APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(Document.global_objects.count(), 0)
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_api_trash_show_owned_only(self) -> None:
         """
         GIVEN:
@@ -239,6 +246,8 @@ class TestTrashAPI(DirectoriesMixin, APITestCase):
         ]
         return root, versions
 
+    # PIA issue 1: relies on unowned documents being visible to everyone
+    @override_settings(UNOWNED_DOCUMENTS_VISIBLE=True)
     def test_api_trash_restore_document_restores_its_versions(self) -> None:
         """
         GIVEN:
