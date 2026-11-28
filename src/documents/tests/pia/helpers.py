@@ -24,8 +24,8 @@ def visible_document_ids(client: APIClient) -> set[int]:
 
 
 def train_and_save_classifier() -> DocumentClassifier:
-    """Traint de classifier op alle documenten en schrijft het modelbestand,
-    zoals de uurlijkse taak train_classifier doet."""
+    """Train the classifier on all documents and write the model file,
+    as the hourly train_classifier task does."""
     classifier = DocumentClassifier()
     classifier.train()
     classifier.save()
@@ -33,26 +33,28 @@ def train_and_save_classifier() -> DocumentClassifier:
 
 
 def stored_token(text: str) -> str:
-    """Vind het token waaronder de string `text` in de vocabulary terechtkomt (na lowercase,
-    stopwoorden en stemming), zodat tests niet afhangen van de stemmer."""
+    """Find the token under which the string `text` ends up in the vocabulary
+    (after lowercasing, stop words and stemming), so tests do not depend on
+    the stemmer."""
     tokens = DocumentClassifier().preprocess_content(text).split()
-    assert len(tokens) == 1, f"verwacht één token voor {text!r}, kreeg {tokens}"
+    assert len(tokens) == 1, f"expected one token for {text!r}, got {tokens}"
     return tokens[0]
 
 
 def vocabulary_from_file() -> set[str]:
-    """Leest de vocabulary uit settings.MODEL_FILE op de normale manier,
-    zoals Paperless zelf (handtekening gecontroleerd met SECRET_KEY)."""
+    """Read the stored terms from settings.MODEL_FILE the normal way, as
+    Paperless itself does (signature checked with SECRET_KEY).
+
+    A CountVectorizer stores its terms in ``vocabulary_``. The hashed vectorizer
+    has no such attribute because it stores no terms, so the result is empty.
+    """
     classifier = DocumentClassifier()
     classifier.load()
-    return set(classifier.data_vectorizer.vocabulary_)
+    return set(getattr(classifier.data_vectorizer, "vocabulary_", {}))
 
 
-def vocabulary_without_key(model_file: Path) -> set[str]:
-    """Leest de vocabulary zoals een aanvaller met enkel het bestand (of een
-    back-up) dat kan: de 32 bytes HMAC overslaan en de rest unpicklen,
-    zonder SECRET_KEY."""
+def unpickle_without_key(model_file: Path) -> object:
+    """Read the model as an attacker with only the file (or a backup) can:
+    skip the 32-byte HMAC and unpickle the rest, without SECRET_KEY."""
     raw = model_file.read_bytes()
-    payload = pickle.loads(raw[DocumentClassifier.HMAC_SIZE :])
-    data_vectorizer = payload[3]
-    return set(data_vectorizer.vocabulary_)
+    return pickle.loads(raw[DocumentClassifier.HMAC_SIZE :])

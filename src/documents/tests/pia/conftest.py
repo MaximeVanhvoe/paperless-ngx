@@ -85,10 +85,10 @@ def client_for():
 
 @pytest.fixture
 def classifier_model_file(settings: SettingsWrapper, tmp_path: Path) -> Path:
-    """Laat de classifier zijn modelbestand in een tijdelijke map schrijven.
+    """Make the classifier write its model file to a temporary directory.
 
-    De taal staat op Nederlands (stopwoorden + stemming), zoals in een
-    Vlaamse praktijk met PAPERLESS_OCR_LANGUAGE=nld.
+    The language is set to Dutch (stop words and stemming), as in a Flemish
+    practice with PAPERLESS_OCR_LANGUAGE=nld.
     """
     settings.MODEL_FILE = tmp_path / "classification_model.pickle"
     settings.CLASSIFIER_LANGUAGE = "dutch"

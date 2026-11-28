@@ -69,8 +69,75 @@ read_cache = caches["read-cache"]
 
 RE_WORD = re.compile(r"\b[\w]+\b")  # words that may contain digits
 
+# PIA issue 6: Belgian national register numbers (RRN) are removed before
+# tokenizing, so they never reach the model, not even as a hash. Letters write
+# them as 85.07.15-123.45, 850715 123 45 or 85071512345; the tokenizer would
+# otherwise split the formatted variants into fragments such as "85" "07".
+# Any 11-digit number in these layouts is removed, which also covers RIZIV/INAMI
+# numbers of care providers. A number that identifies one person cannot help
+# to classify other documents, so little utility is lost. A number preceded by
+# "+" is an international phone number (+32470123456) and is kept.
+RE_NATIONAL_NUMBER = re.compile(
+    r"(?<![\d+])\d{2}[.\s]?\d{2}[.\s]?\d{2}[-.\s]?\d{3}[.\s]?\d{2}(?!\d)",
+)
+
+# PIA issue 6: number of hash columns. Terms are mapped to a column by a hash
+# function, so the model file stores no list of terms. Only columns that pass
+# MIN_DF reach the MLPs, so a large hash space costs no model size and keeps
+# collisions between terms rare.
+HASHING_N_FEATURES = 2**18
+
+# PIA issue 6: a column must occur in at least this fraction of the training
+# documents, as min_df did for the CountVectorizer. A name that occurs in only
+# a few letters is dropped, so it cannot influence predictions, and hashing a
+# guessed name finds a column without weights.
+MIN_DF = 0.01
+
 # Documents whose content is fetched per query while training
 _CONTENT_CHUNK_SIZE = 1000
+
+
+class MinDfHashingVectorizer:
+    """
+    PIA issue 6: a HashingVectorizer with the min_df filter of a
+    CountVectorizer, but without a vocabulary.
+
+    During fit it counts in how many documents each hash column occurs and
+    keeps only the columns that reach min_df. It stores the numbers of those
+    columns, never the terms. transform() hashes the text and returns only the
+    kept columns, so a rare term has no effect on any prediction.
+    """
+
+    def __init__(self, *, n_features: int, min_df: float) -> None:
+        from sklearn.feature_extraction.text import HashingVectorizer
+
+        self.min_df = min_df
+        # alternate_sign=False and norm=None keep plain term counts, as the
+        # CountVectorizer produced
+        self.hasher = HashingVectorizer(
+            analyzer="word",
+            ngram_range=(1, 2),
+            n_features=n_features,
+            alternate_sign=False,
+            norm=None,
+        )
+        self.columns_ = None
+
+    def fit_transform(self, raw_documents: Iterator[str]):
+        import numpy as np
+
+        hashed = self.hasher.transform(raw_documents).tocsr()
+        hashed.sum_duplicates()
+        # Each document lists a column at most once, so this is the document
+        # frequency of every column
+        doc_freq = np.bincount(hashed.indices, minlength=hashed.shape[1])
+        self.columns_ = np.flatnonzero(doc_freq >= self.min_df * hashed.shape[0])
+        if self.columns_.size == 0:
+            raise ValueError("After pruning, no terms remain.")
+        return hashed[:, self.columns_]
+
+    def transform(self, raw_documents: list[str]):
+        return self.hasher.transform(raw_documents).tocsr()[:, self.columns_]
 
 
 class _SignedFileWriter:
@@ -203,7 +270,9 @@ class DocumentClassifier:
     # v11 - Use sample_weight for balanced training; predict_proba with threshold;
     #       drop training-only MLP state before saving
     #       Tantivy text preprocessing
-    FORMAT_VERSION = 11
+    # v12 - PIA issue 6: hashed features with a min_df filter (no vocabulary in
+    #       the model file), national register numbers removed before vectorizing
+    FORMAT_VERSION = 12
 
     HMAC_SIZE = 32  # SHA-256 digest length
 
@@ -440,7 +509,6 @@ class DocumentClassifier:
             f"{num_document_types} document type(s). {num_storage_paths} storage path(s)",
         )
 
-        from sklearn.feature_extraction.text import CountVectorizer
         from sklearn.neural_network import MLPClassifier
         from sklearn.preprocessing import LabelBinarizer
         from sklearn.preprocessing import MultiLabelBinarizer
@@ -472,20 +540,18 @@ class DocumentClassifier:
                         doc.content if doc is not None else "",
                     )
 
-        self.data_vectorizer = CountVectorizer(
-            analyzer="word",
-            ngram_range=(1, 2),
-            min_df=0.01,
+        # PIA issue 6: a CountVectorizer stores every term with a document
+        # frequency of at least min_df in vocabulary_, which is pickled into the
+        # model file, including patient names. MinDfHashingVectorizer applies
+        # the same min_df filter to hash columns and stores no terms.
+        self.data_vectorizer = MinDfHashingVectorizer(
+            n_features=HASHING_N_FEATURES,
+            min_df=MIN_DF,
         )
 
         data_vectorized: ndarray = self.data_vectorizer.fit_transform(
             content_generator(),
         )
-
-        # See the notes here:
-        # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.CountVectorizer.html
-        # This attribute isn't needed to function and can be large
-        self.data_vectorizer.stop_words_ = None
 
         # Step 3: train the classifiers
         if num_tags > 0:
@@ -586,6 +652,7 @@ class DocumentClassifier:
         """
         language = settings.CLASSIFIER_LANGUAGE
         content = unicodedata.normalize("NFC", content)
+        content = RE_NATIONAL_NUMBER.sub(" ", content)
         if language is None:
             return " ".join(
                 match.group().lower() for match in RE_WORD.finditer(content)

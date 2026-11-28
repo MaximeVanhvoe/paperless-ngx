@@ -23,9 +23,11 @@ from django.db import DatabaseError
 from django.db import close_old_connections
 from django.db import connections
 from django.db import models
+from django.db import transaction
 from django.db.models import Q
 from django.dispatch import receiver
 from django.utils import timezone
+from django_softdelete.signals import post_soft_delete
 from filelock import FileLock
 from rest_framework import serializers
 
@@ -1433,6 +1435,47 @@ def add_or_update_document_in_llm_index(sender, document, **kwargs):
         from documents.tasks import update_document_in_llm_index
 
         update_document_in_llm_index.apply_async(kwargs={"document": document})
+
+
+# PIA issue 6: seconds to wait after a deletion before retraining the
+# classifier, so deletions in the same window share one training run.
+CLASSIFIER_RETRAIN_AFTER_DELETE_DELAY = 60
+CLASSIFIER_RETRAIN_PENDING_KEY = "pia_classifier_retrain_pending"
+
+
+@receiver(post_soft_delete, sender=Document)
+def retrain_classifier_after_delete(
+    sender: Any,
+    instance: Document,
+    **kwargs: Any,
+) -> None:
+    """
+    PIA issue 6: retrain the classifier shortly after a document is moved to
+    the trash, instead of waiting for the hourly schedule, so the content of
+    the deleted document leaves the model file (right to erasure, Art. 17 GDPR).
+    """
+    if not Path(settings.MODEL_FILE).exists():
+        # No model was ever trained, so it holds nothing to erase
+        return
+
+    from django.core.cache import cache
+
+    # Only the first deletion in the window schedules a run; the training run
+    # reads the database when it starts and so covers all of them.
+    if not cache.add(
+        CLASSIFIER_RETRAIN_PENDING_KEY,
+        value=1,
+        timeout=CLASSIFIER_RETRAIN_AFTER_DELETE_DELAY,
+    ):
+        return
+
+    from documents.tasks import train_classifier
+
+    transaction.on_commit(
+        lambda: train_classifier.apply_async(
+            countdown=CLASSIFIER_RETRAIN_AFTER_DELETE_DELAY,
+        ),
+    )
 
 
 @receiver(models.signals.post_delete, sender=Document)
